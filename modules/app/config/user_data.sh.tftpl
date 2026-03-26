@@ -1,0 +1,131 @@
+#!/bin/bash
+set -e
+exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+echo "Iniciando user-data em $(date)"
+
+echo "Atualizando o sistema..."
+dnf update -y
+dnf install vim -y
+dnf install epel-release -y
+dnf install htop -y
+
+# ============================================
+# Instalação do Docker
+# ============================================
+echo "Instalando o Docker CE..."
+dnf remove -y docker docker-client docker-client-latest docker-common docker-latest \
+  docker-latest-logrotate docker-logrotate docker-engine podman runc 2>/dev/null || true
+
+dnf install -y dnf-plugins-core
+dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+systemctl enable --now docker
+
+sleep 5
+systemctl is-active docker || { echo "ERRO: Docker não está ativo"; exit 1; }
+echo "Docker está rodando."
+
+usermod -aG docker rocky
+echo "Instalação do Docker CE concluída."
+
+# ============================================
+# Instalação e Configuração do Nginx
+# ============================================
+echo "Instalando o Nginx..."
+dnf install -y nginx
+
+echo "Configurando Nginx como reverse proxy..."
+cat > /etc/nginx/conf.d/airflow.conf <<'NGINXEOF'
+server {
+    listen 80;
+    server_name _;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSocket
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_read_timeout 90;
+        proxy_connect_timeout 90;
+        proxy_send_timeout 90;
+    }
+}
+NGINXEOF
+
+# Remover configuração default que pode conflitar
+sed -i '/^\s*server {/,/^\s*}/d' /etc/nginx/nginx.conf 2>/dev/null || true
+
+systemctl enable --now nginx
+systemctl is-active nginx || { echo "ERRO: Nginx não está ativo"; exit 1; }
+echo "Nginx configurado como reverse proxy na porta 80."
+
+# ============================================
+# Estrutura de diretórios do Airflow
+# ============================================
+echo "Criando estrutura de diretórios do Airflow..."
+AIRFLOW_HOME="/opt/airflow"
+
+mkdir -p $${AIRFLOW_HOME}/{dags,logs,plugins,config,data}
+
+# ============================================
+# Arquivo .env
+# ============================================
+echo "Criando arquivo .env..."
+cat > $${AIRFLOW_HOME}/.env <<'ENVEOF'
+AIRFLOW_UID=50000
+AIRFLOW_IMAGE_NAME=apache/airflow:3.1.6
+AIRFLOW_PROJ_DIR=/opt/airflow
+_AIRFLOW_WWW_USER_USERNAME=airflow
+_AIRFLOW_WWW_USER_PASSWORD=airflow
+ENVEOF
+
+# ============================================
+# docker-compose.yaml
+# ============================================
+echo "Criando docker-compose.yaml..."
+cat > $${AIRFLOW_HOME}/docker-compose.yaml <<'COMPOSEEOF'
+${docker_compose_content}
+COMPOSEEOF
+
+# ============================================
+# airflow.cfg
+# ============================================
+echo "Criando airflow.cfg..."
+cat > $${AIRFLOW_HOME}/config/airflow.cfg <<'CFGEOF'
+${airflow_cfg_content}
+CFGEOF
+
+# ============================================
+# requirements.txt
+# ============================================
+echo "Criando requirements.txt..."
+cat > $${AIRFLOW_HOME}/requirements.txt <<'REQEOF'
+${requirements_content}
+REQEOF
+
+# ============================================
+# Permissões
+# ============================================
+echo "Ajustando permissões dos diretórios..."
+chown -R 50000:0 $${AIRFLOW_HOME}
+chmod -R 775 $${AIRFLOW_HOME}
+
+# ============================================
+# Iniciar o Airflow via Docker Compose
+# ============================================
+echo "Iniciando Apache Airflow via Docker Compose..."
+cd $${AIRFLOW_HOME}
+docker compose up -d
+
+echo "Aguardando serviços subirem..."
+sleep 30
+
+docker compose ps
+echo "Deploy do Apache Airflow concluído em $(date)"

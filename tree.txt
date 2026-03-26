@@ -1,0 +1,27 @@
+.
+├── backend.tf
+├── LICENSE
+├── locals.tf
+├── main.tf
+├── modules
+│   ├── app
+│   │   ├── config
+│   │   │   ├── airflow.cfg
+│   │   │   ├── docker-compose.yaml
+│   │   │   ├── requirements.txt
+│   │   │   └── user_data.sh.tftpl
+│   │   ├── main.tf
+│   │   ├── output.tf
+│   │   └── variables.tf
+│   └── network
+│       ├── main.tf
+│       ├── output.tf
+│       └── variables.tf
+├── output.tf
+├── provider.tf
+├── README.md
+├── terraform.tfvars
+├── tree.txt
+└── variables.tf
+
+4 directories, 20 files
