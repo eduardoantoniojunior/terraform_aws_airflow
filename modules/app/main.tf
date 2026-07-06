@@ -7,11 +7,19 @@ resource "aws_instance" "airflow" {
 
   user_data = templatefile("${path.module}/config/user_data.sh.tftpl", {
     docker_compose_content = file("${path.module}/config/docker-compose.yaml")
-    airflow_cfg_content    = file("${path.module}/config/airflow.cfg")
-    requirements_content   = file("${path.module}/config/requirements.txt")
+    airflow_admin_username = var.airflow_admin_username
+    airflow_admin_password = var.airflow_admin_password
   })
 
+  user_data_replace_on_change = true
+
   tags = merge(var.tags, {
-    Name = "${var.name_prefix}-airflow"
+    Name = "${var.name_prefix}-instance"
   })
+
+  root_block_device {
+    volume_size = 20
+    volume_type = "gp3"
+    encrypted   = true
+  }
 }

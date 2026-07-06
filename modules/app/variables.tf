@@ -10,11 +10,6 @@ variable "tags" {
 }
 
 // Infraestrutura
-variable "region" {
-  description = "Região da AWS que o projeto será implementado"
-  type        = string
-}
-
 variable "instance_type" {
   description = "Tipo da instância EC2"
   type        = string
@@ -38,4 +33,16 @@ variable "subnet_id" {
 variable "security_group_id" {
   description = "ID do security group para a instância EC2"
   type        = string
+}
+
+// Configurações do Airflow
+variable "airflow_admin_username" {
+  description = "Username para acesso a interface web do Airflow"
+  type        = string
+}
+
+variable "airflow_admin_password" {
+  description = "Senha para acesso a interface web do Airflow"
+  type        = string
+  sensitive   = true
 }

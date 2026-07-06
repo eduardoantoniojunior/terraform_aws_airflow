@@ -34,3 +34,16 @@ variable "cidr_blocks" {
   description = "Ip's para liberação de acesso na AWS"
   type        = list(string)
 }
+
+// Configurações do Airflow
+variable "airflow_admin_username" {
+  description = "Username para acesso a interface web do Airflow"
+  type        = string
+  default     = "airflow"
+}
+
+variable "airflow_admin_password" {
+  description = "Senha para acesso a interface web do Airflow"
+  type        = string
+  sensitive   = true
+}
